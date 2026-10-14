@@ -19,7 +19,7 @@ public:
 
     //bool IsGoodStrip(const StripHit &hit) const;
     bool IsGoodStrip(const StripHit &hit,int detector_id = -1) const;
-    bool IsGoodCluster(const StripCluster &cluster) const;
+    bool IsGoodCluster(const StripCluster &cluster, int detector_id = -1) const;
     //void FormClusters(std::vector<StripHit> &hits,
     //                  std::vector<StripCluster> &clusters) const;
     void FormClusters(std::vector<StripHit> &hits,
@@ -30,7 +30,7 @@ public:
                               std::vector<GEMHit> &container,
                               int det_id,
                               float resolution) const;
-    void FilterClusters(std::vector<StripCluster> &clusters) const;
+    void FilterClusters(std::vector<StripCluster> &clusters, int detector_id = -1) const;
 
 private:
     // private helpers

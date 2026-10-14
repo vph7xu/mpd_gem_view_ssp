@@ -256,6 +256,20 @@ const ValueType &Cuts::__get(const char* str) const
 {
     return __get(std::string(str));
 }
+//
+const ValueType &Cuts::ForModule(const std::string &key, int module_id) const
+{
+    if (module_id >= 0){
+        const std::string specific = key + " detector " + std::to_string(module_id);
+	const auto it = m_cut.find(specific);
+	if (it != m_cut.end()){
+	    return it->second;
+	}
+    }
+	//Preserve the existing global requirement and missing-key behaviour
+    return m_cut.at(key);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //                    helpers on cluster information                          //
@@ -322,22 +336,22 @@ bool Cuts::max_time_bin(const StripHit &hit, int detector_id)const
     const int timebin = __get_max_timebin(hit);
 
     //Fall back to the existing global setting.
-    auto setting = m_cut.find("max time bin");
+    //auto setting = m_cut.find("max time bin");
 
-    if(detector_id >= 0){
-      const std::string key = "max time bin detector " + std::to_string(detector_id);
+    //if(detector_id >= 0){
+    //  const std::string key = "max time bin detector " + std::to_string(detector_id);
       
-      const auto override_setting = m_cut.find(key);
-      if (override_setting != m_cut.end()){
-	     setting = override_setting; 
-      }
-    }
+    //  const auto override_setting = m_cut.find(key);
+    //  if (override_setting != m_cut.end()){
+    //	     setting = override_setting; 
+    //  }
+    //}
 
-    if (setting == m_cut.end()){
-      throw std::runtime_error("Missing max time bin configuration");
-    }
+    //if (setting == m_cut.end()){
+    //  throw std::runtime_error("Missing max time bin configuration");
+    //}
 
-    for (const int allowed : setting->second.arr<int>()){
+    for (const int allowed : ForModule("max time bin",detector_id).arr<int>()){
       if (timebin == allowed){
         return true;
       }
@@ -346,11 +360,11 @@ bool Cuts::max_time_bin(const StripHit &hit, int detector_id)const
     return false;
 }
 
-bool Cuts::strip_mean_time(const StripHit &hit) const
+bool Cuts::strip_mean_time(const StripHit &hit, int detector_id) const
 {
     float mean_time = __get_mean_time(hit);
 
-    auto mean_time_range = m_cut.at("strip mean time range").arr<float>();
+    auto mean_time_range = ForModule("strip mean time range", detector_id).arr<float>(); //m_cut.at("strip mean time range").arr<float>();
 
     if(mean_time >= mean_time_range[0] && mean_time <= mean_time_range[1])
         return true;
@@ -410,11 +424,11 @@ bool Cuts::is_concave_shape(const StripHit &hit) const
     return true;
 }
 
-bool Cuts::seed_strip_min_peak_adc(const StripCluster &cluster) const
+bool Cuts::seed_strip_min_peak_adc(const StripCluster &cluster, int detector_id) const
 {
     float adc = __get_seed_strip_max_adc(cluster);
 
-    float minimum_adc = m_cut.at("seed strip min peak ADC").val<float>();
+    float minimum_adc = ForModule("seed strip min peak ADC", detector_id).val<float>();//m_cut.at("seed strip min peak ADC").val<float>();
 
     if(adc >= minimum_adc)
         return true;
@@ -422,11 +436,11 @@ bool Cuts::seed_strip_min_peak_adc(const StripCluster &cluster) const
     return false;
 }
 
-bool Cuts::seed_strip_min_sum_adc(const StripCluster &cluster) const
+bool Cuts::seed_strip_min_sum_adc(const StripCluster &cluster, int detector_id) const
 {
     float adc = __get_seed_strip_sum_adc(cluster);
 
-    float minimum_adc = m_cut.at("seed strip min sum ADC").val<float>();
+    float minimum_adc = ForModule("seed strip min sum ADC", detector_id).val<float>();//m_cut.at("seed strip min sum ADC").val<float>();
 
     if(adc >= minimum_adc)
         return true;
@@ -447,14 +461,14 @@ bool Cuts::qualify_for_seed_strip(const StripHit &hit) const
     return false;
 }
 
-bool Cuts::strip_mean_time_agreement(const StripHit &hit1, const StripHit &hit2) const
+bool Cuts::strip_mean_time_agreement(const StripHit &hit1, const StripHit &hit2, int detector_id) const
 {
     float m1 = __get_mean_time(hit1);
     float m2 = __get_mean_time(hit2);
 
     float diff = abs(m1 - m2);
 
-    float criteria = m_cut.at("strip mean time agreement").val<float>();
+    float criteria = ForModule("strip mean time agreement", detector_id).val<float>();//m_cut.at("strip mean time agreement").val<float>();
 
     if(diff <= criteria)
         return true;
@@ -486,14 +500,14 @@ bool Cuts::min_cluster_size(const StripCluster &cluster) const
     return false;
 }
 
-bool Cuts::cluster_adc_assymetry(const StripCluster &c1, const StripCluster &c2) const
+bool Cuts::cluster_adc_assymetry(const StripCluster &c1, const StripCluster &c2, int detector_id) const
 {
     float c1_adc = c1.peak_charge;
     float c2_adc = c2.peak_charge;
 
     float assymetry = abs(c1_adc - c2_adc) / abs(c1_adc + c2_adc);
     
-    float criteria = m_cut.at("2d cluster adc assymetry").val<float>();
+    float criteria = ForModule("2d cluster adc assymetry").val<float>();//m_cut.at("2d cluster adc assymetry").val<float>();
 
     if(assymetry <= criteria)
         return true;
@@ -798,21 +812,35 @@ float Cuts::__correlation_coefficient(const vector<float> &v1,
     return coefficient;
 }
 
-bool Cuts::cluster_strip_time_agreement(const StripCluster &c) const
-{
-    int seed = __get_seed_strip_index(c);
+//bool Cuts::cluster_strip_time_agreement(const StripCluster &c) const
+//{
+//    int seed = __get_seed_strip_index(c);
 
-    unsigned int cluster_size = c.hits.size();
-    for(unsigned int i=0; i<cluster_size && i!=(unsigned int)seed; i++)
-    {
-        if(!strip_mean_time_agreement(c.hits[seed], c.hits[i]))
-            return false;
+//    unsigned int cluster_size = c.hits.size();
+//    for(unsigned int i=0; i<cluster_size && i!=(unsigned int)seed; i++)
+//    {
+//        if(!strip_mean_time_agreement(c.hits[seed], c.hits[i]))
+//            return false;
+//    }
+
+//    return true;
+//}
+
+bool Cuts::cluster_strip_time_agreement(const StripCluster &c, int detector_id)const
+{
+    const int seed = __get_seed_strip_index(c);
+    if (seed < 0 || static_cast<size_t>(seed) >= c.hits.size()){
+        return false;
     }
 
+    for (size_t i = 0; i < c.hits.size(); ++i){
+    	if (i == static_cast<size_t>(seed)) continue;
+	if (!strip_mean_time_agreement(c.hits[seed], c.hits[i], detector_id)) return false;
+    }
     return true;
 }
 
-bool Cuts::cluster_time_assymetry(const StripCluster &c1, const StripCluster &c2) const
+bool Cuts::cluster_time_assymetry(const StripCluster &c1, const StripCluster &c2, int detector_id) const
 {
     int seed1 = __get_seed_strip_index(c1);
     int seed2 = __get_seed_strip_index(c2);
@@ -820,7 +848,7 @@ bool Cuts::cluster_time_assymetry(const StripCluster &c1, const StripCluster &c2
     if(seed1 < 0 || seed2 < 0)
         return false;
 
-    if(!strip_mean_time_agreement(c1.hits[seed1], c2.hits[seed2]))
+    if(!strip_mean_time_agreement(c1.hits[seed1], c2.hits[seed2], detector_id))
         return false;
 
     return true;

@@ -64,30 +64,41 @@ public:
     const ValueType &__get(const std::string &str) const;
     const ValueType &__get(const char* str) const;
 
+    const ValueType &ForModule(const std::string &key, int module_id = -1)const;
+
     // cuts on hits
     //bool max_time_bin(const StripHit &) const;
     bool max_time_bin(const StripHit &, int detector_id = -1) const;
-    bool strip_mean_time(const StripHit &) const;
+    //bool strip_mean_time(const StripHit &) const;
+    bool strip_mean_time(const StripHit &, int detector_id = -1) const;
+    
     bool reject_max_first_timebin(const StripHit &) const;
     bool reject_max_last_timebin(const StripHit &) const;
     bool is_concave_shape(const StripHit &) const;
 
     // cuts on clusters
-    bool seed_strip_min_peak_adc(const StripCluster &) const;
-    bool seed_strip_min_sum_adc(const StripCluster &) const;
+    //bool seed_strip_min_peak_adc(const StripCluster &) const;
+    bool seed_strip_min_peak_adc(const StripCluster &, int detector_id = -1) const;
+    //bool seed_strip_min_sum_adc(const StripCluster &) const;
+    bool seed_strip_min_sum_adc(const StripCluster &, int detector_id = -1) const;
+    
     bool qualify_for_seed_strip(const StripHit &) const;
     // --between seed strip and any single constituent strip
-    bool strip_mean_time_agreement(const StripHit &, const StripHit &) const;
+    //bool strip_mean_time_agreement(const StripHit &, const StripHit &) const;
+    bool strip_mean_time_agreement(const StripHit &, const StripHit &, int detector_id = -1) const;
     bool time_sample_correlation_coefficient(const StripHit &, const StripHit &) const;
     // --on total number of strips
     bool min_cluster_size(const StripCluster &) const;
     // --timing correlation between any strip and seed strip
-    bool cluster_strip_time_agreement(const StripCluster &c) const;
+    //bool cluster_strip_time_agreement(const StripCluster &c) const;
+    bool cluster_strip_time_agreement(const StripCluster &c, int detector_id = -1) const;
 
     // cuts on cluster matching
-    bool cluster_adc_assymetry(const StripCluster &c1, const StripCluster &c2) const;
+    //bool cluster_adc_assymetry(const StripCluster &c1, const StripCluster &c2) const;
+    bool cluster_adc_assymetry(const StripCluster &c1, const StripCluster &c2, int detector_id = -1) const;
     // cuts on two cluster timing agreement
-    bool cluster_time_assymetry(const StripCluster &c1, const StripCluster &c2) const;
+    //bool cluster_time_assymetry(const StripCluster &c1, const StripCluster &c2) const;
+    bool cluster_time_assymetry(const StripCluster &c1, const StripCluster &c2, int detector_id = -1) const;
 
     // cuts on tracking
     bool track_chi2(const std::vector<StripCluster> &);

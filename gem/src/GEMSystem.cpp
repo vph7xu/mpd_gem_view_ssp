@@ -1213,6 +1213,13 @@ void GEMSystem::buildPlane(std::list<ConfigValue> &pln_args)
                   << std::endl;
         return;
     }
+    //const int module_id = det->GetDetID();
+    //const std::string suffix = " Module " + std::to_string(module_id);
+    //const float module_zth = Value<float>("Zero Suppression Threshold" + suffix, def_zth, false);
+    //const float module_ctth = Value<float>("Cross Talk Threshold" + suffix, def_ctth, false);
+
+    //new_apv->SetZeroSupThresLevel(module_zth);
+    //new_apv->SetCrossTalkThresLevel(module_ctth);
 
     if(det -> GetType() == "MOLLERGEM")
         size = (double)connector * (APV_STRIP_SIZE - 7) * pitch;
@@ -1316,6 +1323,14 @@ void GEMSystem::buildAPV(std::list<ConfigValue> &apv_args)
                   << std::endl;
         return;
     }
+
+    const int module_id = det->GetDetID();
+    const std::string suffix = " Module " + std::to_string(module_id);
+    const float module_zth = Value<float>("Zero Supression Threshold" + suffix, def_zth, false);
+    const float module_ctth = Value<float>("Cross Talk Threshold" + suffix, def_ctth, false);
+
+    new_apv->SetZeroSupThresLevel(module_zth);
+    new_apv->SetCrossTalkThresLevel(module_ctth);
 
     std::string detector_type = layer -> GetGEMChamberType();
 

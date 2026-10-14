@@ -100,7 +100,7 @@ void GEMCluster::FormClusters([[maybe_unused]]std::vector<StripHit> &hits,
     setCrossTalk(clusters); // xinzhan: debug: temporarily disable cross talk removal
 
     // filter clusters
-    FilterClusters(clusters);
+    FilterClusters(clusters, detector_id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,7 +114,7 @@ bool GEMCluster::IsGoodStrip(const StripHit &hit, int detector_id) const
         return false;
 
     // strip avg time cut
-    if(!Cuts::Instance().strip_mean_time(hit))
+    if(!Cuts::Instance().strip_mean_time(hit), detector_id)
         return false;
 #endif
     return true;
@@ -322,33 +322,49 @@ const
 ////////////////////////////////////////////////////////////////////////////////
 // is it a good cluster
 
-bool GEMCluster::IsGoodCluster([[maybe_unused]]const StripCluster &cluster) const
+//bool GEMCluster::IsGoodCluster([[maybe_unused]]const StripCluster &cluster, int detector_id) const
+//{
+//#ifdef USE_GEM_CUT
+    // bad size
+//    if((cluster.hits.size() < min_cluster_hits) ||
+//       (cluster.hits.size() > max_cluster_hits))
+//        return false;
+
+//   if(!(Cuts::Instance().seed_strip_min_peak_adc(cluster)))
+//        return false;
+
+//    if(!(Cuts::Instance().seed_strip_min_sum_adc(cluster)))
+//        return false;
+
+//    if(!(Cuts::Instance().cluster_strip_time_agreement(cluster)))
+//        return false;
+//#endif
+    // not a cross talk cluster
+//    return !cluster.cross_talk;
+//}
+//
+bool GEMCluster::IsGoodCluster(const StripCluster &cluster, int detector_id)const
 {
 #ifdef USE_GEM_CUT
-    // bad size
-    if((cluster.hits.size() < min_cluster_hits) ||
-       (cluster.hits.size() > max_cluster_hits))
-        return false;
+	const auto &cuts = Cuts::Instance();
 
-    if(!(Cuts::Instance().seed_strip_min_peak_adc(cluster)))
-        return false;
+	const int minimum = cuts.ForModule("min cluster size", detector_id).val<int>();
+	const int maximum = cuts.ForModule("max cluster size", detector_id).val<int>();
 
-    if(!(Cuts::Instance().seed_strip_min_sum_adc(cluster)))
-        return false;
-
-    if(!(Cuts::Instance().cluster_strip_time_agreement(cluster)))
-        return false;
+	const int size = static_cast<int>(cluster.hits.size());
+	if(size < minimum || size > maximum) return false;
+	if(!cuts.seed_strip_min_peak_adc(cluster, detector_id)) return false;
+	if(!cuts.seed_strip_min_sum_adc(cluster, detector_id)) return false;
+	if(!cuts.cluster_strip_time_agreement(cluster, detector_id)) return false;
 #endif
-    // not a cross talk cluster
-    return !cluster.cross_talk;
+	return !cluster.cross_talk;
 }
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // filter clusters
 
-void GEMCluster::FilterClusters(std::vector<StripCluster> &clusters) 
-const 
+void GEMCluster::FilterClusters(std::vector<StripCluster> &clusters, int detector_id) const 
 {
     // check mapping
     [[maybe_unused]] auto belongs_to_apv = [](int crate, int mpd, int ch, const StripCluster &c) -> bool
@@ -368,7 +384,7 @@ const
     auto it = clusters.begin();
     for(; it != clusters.end(); it++)
     {
-        if(!IsGoodCluster(*it))
+        if(!IsGoodCluster(*it,detector_id))
             continue;
 
         temp_clusters.push_back(*it);
@@ -427,10 +443,10 @@ const
             for(auto &yc : y_cluster)
             {
 #ifdef USE_GEM_CUT
-                if(!(Cuts::Instance().cluster_adc_assymetry(xc, yc)))
+                if(!(Cuts::Instance().cluster_adc_assymetry(xc, yc, det_id)))
                     continue;
 
-                if(!(Cuts::Instance().cluster_time_assymetry(xc, yc)))
+                if(!(Cuts::Instance().cluster_time_assymetry(xc, yc, det_id)))
                     continue;
 #endif
                 container.emplace_back(xc.position, yc.position, 0.,        // by default z = 0
