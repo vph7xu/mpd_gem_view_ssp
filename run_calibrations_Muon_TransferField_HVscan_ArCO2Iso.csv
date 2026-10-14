@@ -1,0 +1,12 @@
+run,pedestal,common_mode
+# Fill in your actual assignments; ranges are inclusive. Remove these examples if different.
+#ArCO2C412 : Transfer field scan from 1 kV/cm(200 V) to 4 kV/cm (800 V) by 40 V
+532,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+533,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+534,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+535,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+536,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+537,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+538,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+539,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+540,database/gem_ped_472.dat,database/CommonModeRange_472.txt

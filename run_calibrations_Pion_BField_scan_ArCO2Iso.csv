@@ -1,0 +1,15 @@
+run,pedestal,common_mode
+# Fill in your actual assignments; ranges are inclusive. Remove these examples if different.
+#ArCO2C412 BField scan uRWELL at 390 V and 370 V : GEM at 340 V : Drift field 2 kV/cm
+604,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+605,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+606,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+607,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+608,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+609,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+610,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+611,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+612,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+613,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+614,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+615,database/gem_ped_472.dat,database/CommonModeRange_472.txt

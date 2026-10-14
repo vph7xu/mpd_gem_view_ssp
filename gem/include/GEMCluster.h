@@ -17,10 +17,14 @@ public:
     // without rebuilding the whole cluster object
     void ReloadCuts();
 
-    bool IsGoodStrip(const StripHit &hit) const;
+    //bool IsGoodStrip(const StripHit &hit) const;
+    bool IsGoodStrip(const StripHit &hit,int detector_id = -1) const;
     bool IsGoodCluster(const StripCluster &cluster) const;
+    //void FormClusters(std::vector<StripHit> &hits,
+    //                  std::vector<StripCluster> &clusters) const;
     void FormClusters(std::vector<StripHit> &hits,
-                      std::vector<StripCluster> &clusters) const;
+                      std::vector<StripCluster> &clusters,
+		      int detector_id = -1) const;
     void CartesianReconstruct(const std::vector<StripCluster> &x_cluster,
                               const std::vector<StripCluster> &y_cluster,
                               std::vector<GEMHit> &container,
@@ -32,11 +36,17 @@ private:
     // private helpers
     void split_cluster(std::vector<StripHit>::iterator beg, std::vector<StripHit>::iterator end,
         double thres, std::vector<StripCluster> &clusters) const;
-    void cluster_hits(std::vector<StripHit>::iterator beg, std::vector<StripHit>::iterator end,
-        int con_thres, double diff_thres, std::vector<StripCluster> &clusters) const;
+    //voidcluster_hits(std::vector<StripHit>::iterator beg, std::vector<StripHit>::iterator end,
+    //    int con_thres, double diff_thres, std::vector<StripCluster> &clusters) const;
+    void cluster_hits(std::vector<StripHit>::iterator beg, 
+		      std::vector<StripHit>::iterator end,
+                      int con_thres, double diff_thres, 
+		      std::vector<StripCluster> &clusters,
+		      int detector_id) const;
 
 protected:
-    void groupHits(std::vector<StripHit> &h, std::vector<StripCluster> &c) const;
+    //void groupHits(std::vector<StripHit> &h, std::vector<StripCluster> &c) const;
+    void groupHits(std::vector<StripHit> &h, std::vector<StripCluster> &c,int detector_id) const;
     void reconstructCluster(StripCluster &cluster) const;
     void setCrossTalk(std::vector<StripCluster> &clusters) const;
 

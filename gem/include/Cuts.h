@@ -65,7 +65,8 @@ public:
     const ValueType &__get(const char* str) const;
 
     // cuts on hits
-    bool max_time_bin(const StripHit &) const;
+    //bool max_time_bin(const StripHit &) const;
+    bool max_time_bin(const StripHit &, int detector_id = -1) const;
     bool strip_mean_time(const StripHit &) const;
     bool reject_max_first_timebin(const StripHit &) const;
     bool reject_max_last_timebin(const StripHit &) const;

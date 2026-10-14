@@ -1,0 +1,23 @@
+#!/bin/bash
+
+source setup_env.sh
+
+RUN=$1
+
+echo "analyzing run" $RUN
+
+# replay run
+#./bin/replay.app/Contents/MacOS/replay -c 0 -t 0 -z 1 -n -1 --tracking on --pedestal database/gem_ped_839.dat --common_mode database/CommonModeRange_839.txt /Users/xinzhan/test/evio_data/MOLLER_UVA/vtp_trigger_test_$RUN.evio.0
+
+./bin/replay -c 0 -t 0 -z 1 -n -1 --tracking off --pedestal database/gem_ped_472.dat --common_mode database/CommonModeRange_472.txt /standard/sbs/CERN_BEAM_TEST/UVA_DATA_1/data_20Ar80CO2/20260721_DUT_GEM_hv_scan/cern_beamtest_exp1_$RUN.evio.0
+
+# plot run
+#ROOT_FILE='scripts/plot_quality_results.cpp("Rootfiles/cluster_0_fermilab_beamtest_'${RUN}'.root_data_quality_check.root")'
+ROOT_FILE='scripts/plot_quality_results_2.cpp("Rootfiles/cluster_0_cern_beamtest_exp1_'${RUN}'.root_data_quality_check.root")'
+root -b -q $ROOT_FILE
+
+
+# show run
+#evince Rootfiles/cluster_0_vtp_trigger_test_$RUN.evio.0.root_data_quality_check.root.pdf 
+#open Rootfiles/cluster_0_fermilab_beamtest_$RUN.root_data_quality_check.root.pdf 
+xdg-open Rootfiles/cluster_0_cern_beamtest_exp1_$RUN.root_data_quality_check.root.pdf

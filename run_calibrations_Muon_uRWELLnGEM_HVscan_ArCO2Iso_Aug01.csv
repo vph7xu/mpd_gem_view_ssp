@@ -1,0 +1,38 @@
+run,pedestal,common_mode
+# Fill in your actual assignments; ranges are inclusive. Remove these examples if different.
+#uRWELL HV Scan at GEM 340 V, Transfer field 2.5 kV/cm and drift field 2 kV/cm
+834,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+835,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+836,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+837,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+838,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+839,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+840,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+841,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+842,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+843,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+845,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+847,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+848,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+849,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+850,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+851,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+852,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+853,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+854,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+#GEM HV Scan at uRWELL1 at 385 V uRWELL2 at 370 V Transfer field 3.0 kV/cm and drift field 2 kV/cm
+855,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+856,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+857,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+858,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+859,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+860,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+861,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+862,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+863,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+864,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+865,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+866,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+867,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+869,database/gem_ped_832.dat,database/CommonModeRange_832.txt
+872,database/gem_ped_832.dat,database/CommonModeRange_832.txt

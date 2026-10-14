@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <cmath>
 #include "GEMStruct.h"
 #include "GEMPlane.h"
 

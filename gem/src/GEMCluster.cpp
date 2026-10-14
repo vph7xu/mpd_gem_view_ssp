@@ -81,14 +81,14 @@ void GEMCluster::ReloadCuts()
 // group hits into clusters
 
 void GEMCluster::FormClusters([[maybe_unused]]std::vector<StripHit> &hits,
-                              [[maybe_unused]]std::vector<StripCluster> &clusters) 
-const
+                              [[maybe_unused]]std::vector<StripCluster> &clusters,
+			      int detector_id) const
 {
     // clean container first
     clusters.clear();
 
     // group consecutive hits as the preliminary clusters
-    groupHits(hits, clusters);
+    groupHits(hits, clusters, detector_id);
 
     // reconstruct the cluster position
     for(auto &cluster : clusters)
@@ -97,7 +97,7 @@ const
     }
 
     // set cross talk flag
-    //setCrossTalk(clusters); // xinzhan: debug: temporarily disable cross talk removal
+    setCrossTalk(clusters); // xinzhan: debug: temporarily disable cross talk removal
 
     // filter clusters
     FilterClusters(clusters);
@@ -106,11 +106,11 @@ const
 ////////////////////////////////////////////////////////////////////////////////
 // is it a good strip
 
-bool GEMCluster::IsGoodStrip(const StripHit &hit) const
+bool GEMCluster::IsGoodStrip(const StripHit &hit, int detector_id) const
 {
 #ifdef USE_GEM_CUT
     // time bin cut
-    if(!Cuts::Instance().max_time_bin(hit))
+    if(!Cuts::Instance().max_time_bin(hit,detector_id))
         return false;
 
     // strip avg time cut
@@ -183,12 +183,12 @@ void GEMCluster::split_cluster(std::vector<StripHit>::iterator beg, std::vector<
 //template<class Iter>
 //inline void cluster_hits(Iter beg, Iter end, int con_thres, double diff_thres, std::vector<StripCluster> &clusters)
 void GEMCluster::cluster_hits(std::vector<StripHit>::iterator beg, std::vector<StripHit>::iterator end,
-        int con_thres, double diff_thres, std::vector<StripCluster> &clusters) const
+        int con_thres, double diff_thres, std::vector<StripCluster> &clusters, int detector_id) const
 {
     auto cbeg = beg;
     for(auto it = beg; it != end; ++it)
     {
-        if(!IsGoodStrip(*it))
+        if(!IsGoodStrip(*it, detector_id))
         {
             if(cbeg != it) {
                 split_cluster(cbeg, it, diff_thres, clusters);
@@ -208,8 +208,7 @@ void GEMCluster::cluster_hits(std::vector<StripHit>::iterator beg, std::vector<S
 ////////////////////////////////////////////////////////////////////////////////
 // group consecutive hits
 
-void GEMCluster::groupHits(std::vector<StripHit> &hits, std::vector<StripCluster> &clusters)
-const
+void GEMCluster::groupHits(std::vector<StripHit> &hits, std::vector<StripCluster> &clusters, int detector_id)const
 {
     // sort hits by its strip number
     std::sort(hits.begin(), hits.end(),
@@ -220,7 +219,7 @@ const
               });
 
     // cluster hits
-    cluster_hits(hits.begin(), hits.end(), consecutive_thres, split_cluster_diff, clusters);
+    cluster_hits(hits.begin(), hits.end(), consecutive_thres, split_cluster_diff, clusters, detector_id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

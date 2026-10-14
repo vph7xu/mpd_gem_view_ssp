@@ -571,8 +571,8 @@ void GEMPlane::FormClusters(GEMCluster *method)
         }
 
         // group strips to clusters, separately for odd and even strips
-        method -> FormClusters(strip_hits_odd, strip_clusters_odd);
-        method -> FormClusters(strip_hits_even, strip_clusters_even);
+        method -> FormClusters(strip_hits_odd, strip_clusters_odd, detector->GetDetID());
+        method -> FormClusters(strip_hits_even, strip_clusters_even, detector->GetDetID());
 
         // merge clusters from even and odd strips
         strip_clusters.clear();
@@ -582,7 +582,7 @@ void GEMPlane::FormClusters(GEMCluster *method)
             strip_clusters.push_back(i);
     }
     else {
-        method->FormClusters(strip_hits, strip_clusters);
+        method->FormClusters(strip_hits, strip_clusters, detector->GetDetID());
     }
 }
 

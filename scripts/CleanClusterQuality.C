@@ -1,0 +1,447 @@
+// CleanClusterQuality.C -- ROOT 6, no GEM viewer libraries needed.
+// root -l -b -q 'CleanClusterQuality.C("cluster.root","clean_quality.root")'
+// EDIT MakeSettings() below, then rerun. Your uploaded physics cuts are retained.
+// Plot ranges below change display only: underlying bins and tree data are kept.
+// Input: GEMCluster tree written by vph7xu/mpd_gem_view_ssp.
+// Source inspected: commit 169d338f45aca70f2584edcf59887ddb7c8e4639.
+// Output root level: selected histograms + cleaned GEMCluster tree.
+// before_cuts/: input distributions; after_cluster_cuts/: before pair selection.
+// Detector keys are prodID (GetDetID), NOT planeID or moduleID.
+// adc is PEAK STRIP ADC, not total cluster charge. sumADC sums stripAdc.
+// Strip indices are the STORED chamber-based stripNo values, not APV channels.
+// No timing/waveform/cross-talk cuts: these quantities are absent from this tree.
+// No re-clustering or tracking: reject whole clusters; keep surviving positions.
+// Strip histograms cover CLUSTER-ASSOCIATED strips, not all zero-suppressed hits.
+// Positions are stored plane coordinates; no UV/XW -> XY conversion is attempted.
+// Original QC pairs descending peak-ADC-ranked X/Y clusters; so does this macro.
+// Pair cuts reject ranked pairs without trying another partner. Unless
+// requireMatchedPair=true, pair cuts affect pair plots only, not single-plane plots.
+// NEW output files only by default; fourth argument true explicitly overwrites.
+#include <TFile.h>
+#include <TTree.h>
+#include <TTreeReader.h>
+#include <TTreeReaderValue.h>
+#include <TDirectory.h>
+#include <TH1D.h>
+#include <TH1F.h>
+#include <TH2F.h>
+#include <TNamed.h>
+#include <TSystem.h>
+#include <TString.h>
+#include <algorithm>
+#include <cmath>
+#include <iostream>
+#include <limits>
+#include <map>
+#include <memory>
+#include <set>
+#include <sstream>
+#include <stdexcept>
+#include <vector>
+
+namespace ClusterQC {
+const double INF = std::numeric_limits<double>::infinity();
+struct Range {
+    double min=-INF, max=INF;
+    bool accepts(double x) const { return std::isfinite(x) && x>=min && x<=max; }
+};
+struct PlaneCuts {
+    Range peakADC, sumADC, position;
+    int minSize=1, maxSize=100000;
+    // If ANY strip lies in a mask range, reject the ENTIRE cluster.
+    // Do not drop a strip and retain the old centroid/size/charge.
+    std::vector<std::pair<int,int>> maskedStrips;
+};
+struct DetectorCuts {
+    PlaneCuts x, y;
+    double yGain=1.0; // Compare Qx to yGain*Qy; histogram ADC remains unscaled.
+    double maxAbsAsymmetry=INF; // |(Qx-yGain*Qy)/(Qx+yGain*Qy)|.
+    Range pairX, pairY; // Optional acceptance on STORED positions.
+};
+struct Settings {
+    DetectorCuts defaults;
+    std::map<int,DetectorCuts> detectors; // prodID -> complete override.
+    bool requireMatchedPair=false;
+    bool writeCleanTree=true;
+    int firstEventID=std::numeric_limits<int>::min();
+    int lastEventID=std::numeric_limits<int>::max();
+    int maxEventClusters=std::numeric_limits<int>::max(); // On INPUT multiplicity.
+    // Binning for all stages, deliberately identical for comparisons.
+    int adcBins=300, posBins=300, stripBins=3200, sizeBins=100;
+    double adcMax=3000, posMin=-700, posMax=700;
+    // ============= EDIT DISPLAY RANGES HERE =============
+    // Based on the attached run-479 PDF; shared across all three stages.
+    // These are NOT cuts or histogram bin boundaries.
+    Range plotPeakADC = {0,2200};
+    Range plotSumADC = {0,4000};
+    Range plotPosition = {-150,150};
+    Range plotStripIndex = {-0.5,255.5};
+    Range plotFiredStrips = {-0.5,80.5}; // Zoom into low-occupancy events; tails retained.
+    Range plotSize = {-0.5,17.5};
+    Range plotMultiplicity = {-0.5,17.5};
+    Range plotEventID = {0,250000};
+    Range plotAsymmetry = {-1,1}; // Keep full range to assess pair selection.
+    double plotCountHeadroom = 1.20; // Linear count axis: 0 to 1.2 * visible peak.
+    // ===================================================
+    const DetectorCuts &get(int detector) const {
+        auto it=detectors.find(detector);
+        return it==detectors.end() ? defaults : it->second;
+    }
+};
+
+// ==================== EDIT YOUR CUTS HERE ====================
+Settings MakeSettings() {
+    Settings c;
+    // EXAMPLES ONLY -- uncomment the selections you want to study.
+    c.defaults.x.peakADC = {50, INF};
+    c.defaults.y.peakADC = {50, INF};
+    c.defaults.x.sumADC  = {100, INF};
+    c.defaults.y.sumADC  = {100, INF};
+    // c.defaults.x.minSize = 2; // Keep 1 by default; study efficiency before raising.
+    // c.defaults.y.minSize = 2;
+    // c.defaults.x.maxSize = 10;
+    // c.defaults.y.maxSize = 10;
+    c.defaults.maxAbsAsymmetry = 0.5;
+    c.requireMatchedPair = true; // Makes pair cuts also select clusters/strips/tree.
+    // c.defaults.pairX = {-140,140};
+    // c.defaults.pairY = {-140,140};
+    //
+    // Per-detector example (AFTER setting the defaults):
+    // c.detectors[2] = c.defaults;
+    // c.detectors[2].x.position = {-150,150};
+    // c.detectors[2].yGain = 1.05;
+    // c.detectors[2].x.maskedStrips = {{17,17},{80,82}};
+    // Mask values are placeholders: use YOUR confirmed noisy strip numbers.
+    // To exclude a whole stored APV region, use e.g. {0,127}; do not do this
+    // merely because its spectrum differs without checking mapping/calibration.
+    return c;
+}
+// ============================================================
+
+struct Cluster {
+    int index, detector, layer, module, axis, size;
+    double peak, sum, position;
+    std::vector<int> strips;
+    std::vector<double> charges;
+};
+using Planes=std::pair<std::vector<Cluster>,std::vector<Cluster>>;
+using Event=std::map<int,Planes>;
+using Pair=std::pair<Cluster,Cluster>;
+void Validate(const Settings &s) {
+    auto range=[](const Range &r){if(std::isnan(r.min)||std::isnan(r.max)||r.min>r.max)
+        throw std::runtime_error("Invalid cut range");};
+    auto det=[&](const DetectorCuts &d){
+        if(!std::isfinite(d.yGain)||d.yGain<=0||std::isnan(d.maxAbsAsymmetry)||d.maxAbsAsymmetry<0)
+            throw std::runtime_error("Invalid gain/asymmetry setting");
+        for(const auto *p:{&d.x,&d.y}) {
+            if(p->minSize<1||p->maxSize<p->minSize) throw std::runtime_error("Invalid size cut");
+            range(p->peakADC);range(p->sumADC);range(p->position);
+            for(auto mask:p->maskedStrips) if(mask.second<mask.first)
+                throw std::runtime_error("Invalid strip mask");
+        }
+        range(d.pairX);range(d.pairY);
+    };
+    det(s.defaults);for(const auto &d:s.detectors)det(d.second);
+    for(const auto *r:{&s.plotPeakADC,&s.plotSumADC,&s.plotPosition,&s.plotStripIndex,
+                      &s.plotFiredStrips,&s.plotSize,&s.plotMultiplicity,&s.plotEventID,&s.plotAsymmetry}){
+        range(*r);
+        if(!std::isfinite(r->min)||!std::isfinite(r->max)||r->max<=r->min)
+            throw std::runtime_error("Display ranges need finite increasing limits");
+    }
+    if(!std::isfinite(s.plotCountHeadroom)||s.plotCountHeadroom<=1)
+        throw std::runtime_error("plotCountHeadroom must exceed 1");
+    if(s.adcBins<=0||s.posBins<=0||s.stripBins<=0||s.sizeBins<=0||s.adcMax<=0||
+       s.posMax<=s.posMin||s.firstEventID>s.lastEventID||s.maxEventClusters<0)
+        throw std::runtime_error("Invalid binning/event settings");
+}
+std::string Describe(const Settings &s) {
+    std::ostringstream o;
+    o << "Schema source: vph7xu/mpd_gem_view_ssp gem/src/GEMRootClusterTree.cpp\n"
+      << "ROOT level=final; before_cuts=all structurally valid input events; "
+      << "after_cluster_cuts=event+cluster cuts before pair selection.\n"
+      << "prodID=detector histogram suffix; adc=peak strip ADC; sumADC=sum(stripAdc).\n"
+      << "strip plots=cluster-associated strips ONLY; stored chamber-based indices.\n"
+      << "No strip time, waveform, cross-talk flag, original all-strip occupancy, "
+      << "tracking refit, residuals, or unbiased efficiency reconstructed.\n"
+      << "Position correlation axes=stored axis0/axis1 coordinates (Cartesian XY only if input is Cartesian).\n"
+      << "Pairing=descending peak ADC rank within prodID, ties=input order; no rematching.\n"
+      << "requireMatchedPair=" << s.requireMatchedPair << "; writeCleanTree=" << s.writeCleanTree
+      << "; eventID=["<<s.firstEventID<<","<<s.lastEventID<<"]; maxEventClusters="<<s.maxEventClusters<<"\n";
+    o<<"Binning: adcBins="<<s.adcBins<<" adcMax="<<s.adcMax<<" posBins="<<s.posBins
+     <<" posRange=["<<s.posMin<<","<<s.posMax<<"] stripBins="<<s.stripBins<<" sizeBins="<<s.sizeBins<<"\n";
+    o<<"Display ranges (not cuts): ";
+    for(const auto &item:std::vector<std::pair<std::string,Range>>{
+        {"peakADC",s.plotPeakADC},{"sumADC",s.plotSumADC},{"position",s.plotPosition},
+        {"stripIndex",s.plotStripIndex},{"firedStrips",s.plotFiredStrips},{"size",s.plotSize},
+        {"multiplicity",s.plotMultiplicity},{"eventID",s.plotEventID},{"asymmetry",s.plotAsymmetry}})
+        o<<item.first<<"=["<<item.second.min<<","<<item.second.max<<"] ";
+    o<<"countHeadroom="<<s.plotCountHeadroom<<"\n";
+    auto show=[&](const std::string &name,const DetectorCuts &d){
+        o<<name<<" yGain="<<d.yGain<<" maxAbsAsymmetry="<<d.maxAbsAsymmetry
+         <<" pairX=["<<d.pairX.min<<","<<d.pairX.max<<"] pairY=["<<d.pairY.min<<","<<d.pairY.max<<"]\n";
+        int axis=0;for(const auto *p:{&d.x,&d.y}){
+            o<<" axis="<<axis++<<" size=["<<p->minSize<<","<<p->maxSize<<"] peakADC=["
+             <<p->peakADC.min<<","<<p->peakADC.max<<"] sumADC=["<<p->sumADC.min<<","<<p->sumADC.max
+             <<"] position=["<<p->position.min<<","<<p->position.max<<"] masks=";
+            for(auto m:p->maskedStrips)o<<"["<<m.first<<","<<m.second<<"] ";o<<"\n";
+        }
+    };
+    show("defaults",s.defaults);for(auto &d:s.detectors)show("prodID="+std::to_string(d.first),d.second);
+    return o.str();
+}
+struct Histograms {
+    TDirectory *dir;
+    const Settings &s;
+    std::map<std::string,TH1*> hist;
+    Histograms(TDirectory *d,const Settings &settings):dir(d),s(settings){}
+    void setDisplayRanges(){
+        auto apply=[](TAxis *a,const Range &r){a->SetRangeUser(r.min,r.max);};
+        for(auto &item:hist){
+            const std::string &name=item.first;TH1 *h=item.second;
+            auto contains=[&](const char *text){return name.find(text)!=std::string::npos;};
+            if(name=="h_event_number")apply(h->GetXaxis(),s.plotEventID);
+            else if(contains("h_charge_asymmetry"))apply(h->GetXaxis(),s.plotAsymmetry);
+            else if(contains("h_cluster_fired_strip"))apply(h->GetXaxis(),s.plotFiredStrips);
+            else if(contains("h_cluster_sum_adc"))apply(h->GetXaxis(),s.plotSumADC);
+            else if(contains("_strip_adc_index")){
+                apply(h->GetXaxis(),s.plotStripIndex);apply(h->GetYaxis(),s.plotPeakADC);
+            }else if(contains("_charge_correlation")){
+                apply(h->GetXaxis(),s.plotPeakADC);apply(h->GetYaxis(),s.plotPeakADC);
+            }else if(contains("_size_correlation")){
+                apply(h->GetXaxis(),s.plotSize);apply(h->GetYaxis(),s.plotSize);
+            }else if(contains("_pos_correlation")){
+                apply(h->GetXaxis(),s.plotPosition);apply(h->GetYaxis(),s.plotPosition);
+            }else if(contains("_cluster_multiplicity"))apply(h->GetXaxis(),s.plotMultiplicity);
+            else if(contains("_cluster_size"))apply(h->GetXaxis(),s.plotSize);
+            else if(contains("_cluster_pos"))apply(h->GetXaxis(),s.plotPosition);
+            else if(contains("strip_adc")||contains("_cluster_adc"))apply(h->GetXaxis(),s.plotPeakADC);
+            if(h->GetDimension()==1){
+                h->SetMinimum(0);
+                double peak=0;
+                for(int b=h->GetXaxis()->GetFirst();b<=h->GetXaxis()->GetLast();++b)
+                    peak=std::max(peak,h->GetBinContent(b));
+                h->SetMaximum(peak>0?s.plotCountHeadroom*peak:1);
+            }
+        }
+    }
+    TH1F *one(const std::string &name,const std::string &title,int n,double lo,double hi){
+        auto *h=new TH1F(name.c_str(),title.c_str(),n,lo,hi);h->SetDirectory(dir);hist[name]=h;return h;
+    }
+    TH2F *two(const std::string &name,const std::string &title,int nx,double xl,double xh,int ny,double yl,double yh){
+        auto *h=new TH2F(name.c_str(),title.c_str(),nx,xl,xh,ny,yl,yh);h->SetDirectory(dir);hist[name]=h;return h;
+    }
+    void book(const std::set<int> &detectors){
+        one("h_event_number","Event number;event ID;events",1000,0,1e6);
+        for(int d:detectors){
+            std::string suffix="_layer"+std::to_string(d);
+            for(int a=0;a<2;++a){
+                std::string xy=a?"y":"x", label=a?"axis 1":"axis 0";
+                one("h_raw_cluster_adc_"+xy+suffix,"Cluster peak-strip ADC, detector "+std::to_string(d)+";peak strip ADC;clusters",s.adcBins,0,s.adcMax);
+                one("h_cluster_sum_adc_"+xy+suffix,"Sum of strip peak ADCs;sum(stripAdc);clusters",s.adcBins,0,4*s.adcMax);
+                one("h_raw_cluster_size_"+xy+suffix,"Cluster size;number of strips;clusters",s.sizeBins,-0.5,s.sizeBins-0.5);
+                one("h_raw_cluster_pos_"+xy+suffix,"Cluster position;stored "+label+" position [mm];clusters",s.posBins,s.posMin,s.posMax);
+                one("h_raw_"+xy+"_cluster_multiplicity"+suffix,"Cluster multiplicity (zeros included);number of clusters;events",100,-0.5,99.5);
+                one("h_raw_"+xy+"strip_adc"+suffix,"ADC of cluster-associated strips;strip peak ADC;cluster-associated strips",s.adcBins,0,s.adcMax);
+                two("h_raw_"+xy+"_strip_adc_index"+suffix,"Cluster-associated strip ADC versus stored index;stored strip index;strip peak ADC",s.stripBins,-0.5,s.stripBins-0.5,s.adcBins,0,s.adcMax);
+                one("h_cluster_fired_strip_det"+std::to_string(d)+"_plane"+std::to_string(a),"Unique cluster-associated strips per event;unique strips;events",s.stripBins+1,-0.5,s.stripBins+0.5);
+            }
+            two("h_raw_charge_correlation"+suffix,"Rank-paired cluster peak ADC;axis 0 peak ADC;axis 1 peak ADC",s.adcBins,0,s.adcMax,s.adcBins,0,s.adcMax);
+            two("h_raw_size_correlation"+suffix,"Rank-paired cluster size;axis 0 size;axis 1 size",s.sizeBins,-0.5,s.sizeBins-0.5,s.sizeBins,-0.5,s.sizeBins-0.5);
+            two("h_raw_pos_correlation"+suffix,"Rank-paired stored plane positions;stored axis 0 position [mm];stored axis 1 position [mm]",s.posBins,s.posMin,s.posMax,s.posBins,s.posMin,s.posMax);
+            one("h_charge_asymmetry"+suffix,"Gain-corrected peak-charge asymmetry;(Q0-g Q1)/(Q0+g Q1);pairs",200,-1,1);
+        }
+    }
+    void fill(const Event &e,const std::map<int,std::vector<Pair>> &pairs,int id,const std::set<int> &detectors){
+        hist.at("h_event_number")->Fill(id);
+        for(int d:detectors){
+            auto it=e.find(d);
+            const Planes empty;
+            const auto &planes=it==e.end()?empty:it->second;
+            std::string suffix="_layer"+std::to_string(d);
+            int a=0;
+            for(const auto *v:{&planes.first,&planes.second}){
+                std::string xy=a?"y":"x";
+                hist.at("h_raw_"+xy+"_cluster_multiplicity"+suffix)->Fill(v->size());
+                std::set<int> strips;
+                for(const auto &c:*v){
+                    hist.at("h_raw_cluster_adc_"+xy+suffix)->Fill(c.peak);
+                    hist.at("h_cluster_sum_adc_"+xy+suffix)->Fill(c.sum);
+                    hist.at("h_raw_cluster_size_"+xy+suffix)->Fill(c.size);
+                    hist.at("h_raw_cluster_pos_"+xy+suffix)->Fill(c.position);
+                    for(size_t j=0;j<c.strips.size();++j){
+                        strips.insert(c.strips[j]);
+                        hist.at("h_raw_"+xy+"strip_adc"+suffix)->Fill(c.charges[j]);
+                        static_cast<TH2*>(hist.at("h_raw_"+xy+"_strip_adc_index"+suffix))->Fill(c.strips[j],c.charges[j]);
+                    }
+                }
+                hist.at("h_cluster_fired_strip_det"+std::to_string(d)+"_plane"+std::to_string(a))->Fill(strips.size());++a;
+            }
+            auto pp=pairs.find(d);if(pp==pairs.end())continue;
+            for(const auto &p:pp->second){
+                const auto &x=p.first;const auto &y=p.second;
+                static_cast<TH2*>(hist.at("h_raw_charge_correlation"+suffix))->Fill(x.peak,y.peak);
+                static_cast<TH2*>(hist.at("h_raw_size_correlation"+suffix))->Fill(x.size,y.size);
+                static_cast<TH2*>(hist.at("h_raw_pos_correlation"+suffix))->Fill(x.position,y.position);
+                double den=x.peak+s.get(d).yGain*y.peak;
+                if(den>0)hist.at("h_charge_asymmetry"+suffix)->Fill((x.peak-s.get(d).yGain*y.peak)/den);
+            }
+        }
+    }
+};
+std::map<int,std::vector<Pair>> Pairs(const Event &e,const Settings &s,bool cuts){
+    std::map<int,std::vector<Pair>> result;
+    for(const auto &item:e){
+        auto x=item.second.first,y=item.second.second;
+        auto desc=[](const Cluster &a,const Cluster &b){return a.peak>b.peak;};
+        std::stable_sort(x.begin(),x.end(),desc);std::stable_sort(y.begin(),y.end(),desc);
+        const auto &c=s.get(item.first);
+        for(size_t j=0;j<std::min(x.size(),y.size());++j){
+            if(cuts){
+                if(!c.pairX.accepts(x[j].position)||!c.pairY.accepts(y[j].position))continue;
+                if(std::isfinite(c.maxAbsAsymmetry)){
+                    double den=x[j].peak+c.yGain*y[j].peak;
+                    if(den<=0||std::abs((x[j].peak-c.yGain*y[j].peak)/den)>c.maxAbsAsymmetry)continue;
+                }
+            }
+            result[item.first].push_back({x[j],y[j]});
+        }
+    }
+    return result;
+}
+bool Accept(const Cluster &c,const PlaneCuts &p,TH1D &flow){
+    flow.Fill(0);
+    if(!std::isfinite(c.peak)||!std::isfinite(c.sum)||!std::isfinite(c.position)||
+       std::any_of(c.charges.begin(),c.charges.end(),[](double x){return !std::isfinite(x);}))return false;
+    flow.Fill(1);
+    if(c.size<p.minSize||c.size>p.maxSize)return false;flow.Fill(2);
+    if(!p.peakADC.accepts(c.peak)||!p.sumADC.accepts(c.sum))return false;flow.Fill(3);
+    if(!p.position.accepts(c.position))return false;flow.Fill(4);
+    for(int strip:c.strips)for(auto m:p.maskedStrips)if(strip>=m.first&&strip<=m.second)return false;
+    flow.Fill(5);return true;
+}
+} // namespace ClusterQC
+
+void CleanClusterQuality(const char *input,const char *output="",Long64_t maxEntries=-1,bool overwrite=true){
+    using namespace ClusterQC;
+    try {
+        Settings settings=MakeSettings();Validate(settings);
+        std::unique_ptr<TFile> src(TFile::Open(input,"READ"));
+        if(!src||src->IsZombie())throw std::runtime_error("Cannot open input file");
+        auto *tree=dynamic_cast<TTree*>(src->Get("GEMCluster"));
+        if(!tree)throw std::runtime_error("Input needs a GEMCluster tree (use main cluster ROOT file)");
+        for(const char *name:{"evtID","nCluster","planeID","prodID","moduleID","axis","size","adc","pos","stripNo","stripAdc"})
+            if(!tree->GetBranch(name))throw std::runtime_error(std::string("Missing required branch: ")+name);
+        TTreeReader reader(tree);
+        TTreeReaderValue<int> evt(reader,"evtID"),nc(reader,"nCluster");
+        TTreeReaderValue<std::vector<int>> layer(reader,"planeID"),det(reader,"prodID"),module(reader,"moduleID"),axis(reader,"axis"),size(reader,"size"),strip(reader,"stripNo");
+        TTreeReaderValue<std::vector<double>> adc(reader,"adc"),pos(reader,"pos"),stripADC(reader,"stripAdc");
+        Long64_t count=tree->GetEntries();if(maxEntries>=0)count=std::min(count,maxEntries);
+        if(count==0)throw std::runtime_error("No input entries selected");
+        std::set<int> detectors;
+        for(Long64_t i=0;i<count;++i){
+            if(!reader.Next()||det.GetSetupStatus()<0)throw std::runtime_error("Cannot read prodID vector<int>");
+            for(int d:*det)detectors.insert(d);
+        }
+        if(detectors.empty())throw std::runtime_error("Selected entries contain no detector IDs/clusters");
+        reader.Restart();
+        // Validate all branch types before creating an output file.
+        if(!reader.Next()||evt.GetSetupStatus()<0||nc.GetSetupStatus()<0||layer.GetSetupStatus()<0||
+           module.GetSetupStatus()<0||axis.GetSetupStatus()<0||size.GetSetupStatus()<0||strip.GetSetupStatus()<0||
+           adc.GetSetupStatus()<0||pos.GetSetupStatus()<0||stripADC.GetSetupStatus()<0)
+            throw std::runtime_error("Branch type mismatch: expected int scalars, vector<int>, vector<double>");
+        reader.Restart();
+        TString out=output;
+        if(out.IsNull()){out=input;if(out.EndsWith(".root"))out.Remove(out.Length()-5);out+="_clean_quality.root";}
+        // Refuse source overwrite, including symlink aliases.
+        // POSIX inode check handles aliases/hardlinks without modifying either file.
+        FileStat_t si,so;
+        if(!gSystem->GetPathInfo(input,si)&&!gSystem->GetPathInfo(out,so)&&si.fDev==so.fDev&&si.fIno==so.fIno)
+            throw std::runtime_error("Output must differ from input");
+        TString parent=gSystem->DirName(out);
+        if(parent!="."&&gSystem->AccessPathName(parent)&&gSystem->mkdir(parent,true)!=0)
+            throw std::runtime_error("Cannot create output directory");
+        std::unique_ptr<TFile> dst(TFile::Open(out,overwrite?"RECREATE":"NEW"));
+        if(!dst||dst->IsZombie())throw std::runtime_error("Cannot create output (already exists? fourth argument true overwrites)");
+        auto *beforeDir=dst->mkdir("before_cuts");auto *clusterDir=dst->mkdir("after_cluster_cuts");
+        Histograms before(beforeDir,settings),clusterStage(clusterDir,settings),finalStage(dst.get(),settings);
+        before.book(detectors);clusterStage.book(detectors);finalStage.book(detectors);
+        dst->cd();
+        TH1D events("h_event_cutflow","Event selection;stage;events",4,-0.5,3.5);
+        const char *el[]={"read","valid structure/finite","event cuts","written"};
+        for(int i=0;i<4;++i)events.GetXaxis()->SetBinLabel(i+1,el[i]);
+        TH1D flow("h_cluster_cutflow","Sequential cluster cuts (after event cuts);stage;clusters",7,-0.5,6.5);
+        const char *cl[]={"input","finite","size","charge","position","strip mask","final"};
+        for(int i=0;i<7;++i)flow.GetXaxis()->SetBinLabel(i+1,cl[i]);
+        TH1D pairFlow("h_pair_cutflow","Rank-pair selection;stage;pairs",2,-0.5,1.5);
+        pairFlow.GetXaxis()->SetBinLabel(1,"rank-paired");pairFlow.GetXaxis()->SetBinLabel(2,"pair cuts");
+        int outEvent=0,outN=0;
+        std::vector<int> outLayer,outDet,outModule,outAxis,outSize,outStrip;
+        std::vector<double> outADC,outPos,outStripADC;
+        std::unique_ptr<TTree> selected;
+        if(settings.writeCleanTree){
+            selected.reset(new TTree("GEMCluster","Selected existing clusters; no tracking refit"));
+            selected->SetDirectory(dst.get());
+            selected->Branch("evtID",&outEvent,"evtID/I");selected->Branch("nCluster",&outN,"nCluster/I");
+            selected->Branch("planeID",&outLayer);selected->Branch("prodID",&outDet);selected->Branch("moduleID",&outModule);
+            selected->Branch("axis",&outAxis);selected->Branch("size",&outSize);selected->Branch("adc",&outADC);
+            selected->Branch("pos",&outPos);selected->Branch("stripNo",&outStrip);selected->Branch("stripAdc",&outStripADC);
+        }
+        Long64_t bad=0,written=0;
+        for(Long64_t entry=0;entry<count;++entry){
+            if(!reader.Next())throw std::runtime_error("Unexpected reader failure at entry "+std::to_string(entry));
+            events.Fill(0);
+            int n=*nc;bool valid=n>=0;
+            if(valid){size_t ns=static_cast<size_t>(n);valid=layer->size()==ns&&det->size()==ns&&module->size()==ns&&axis->size()==ns&&size->size()==ns&&adc->size()==ns&&pos->size()==ns;}
+            size_t total=0;
+            if(valid)for(int k=0;k<n;++k){if((*size)[k]<1||((*axis)[k]!=0&&(*axis)[k]!=1)){valid=false;break;}total+=(*size)[k];}
+            valid=valid&&strip->size()==total&&stripADC->size()==total;
+            if(!valid){++bad;std::cerr<<"Skip malformed entry "<<entry<<" (vector sizes/axes/flattened strips)\n";continue;}
+            Event raw;size_t offset=0;bool finite=true;
+            for(int k=0;k<n;++k){
+                Cluster c{k,(*det)[k],(*layer)[k],(*module)[k],(*axis)[k],(*size)[k],(*adc)[k],0,(*pos)[k],{}, {}};
+                for(int j=0;j<c.size;++j){c.strips.push_back((*strip)[offset+j]);c.charges.push_back((*stripADC)[offset+j]);c.sum+=c.charges.back();}
+                offset+=c.size;
+                finite=finite&&std::isfinite(c.peak)&&std::isfinite(c.sum)&&std::isfinite(c.position)&&
+                    std::all_of(c.charges.begin(),c.charges.end(),[](double q){return std::isfinite(q);});
+                auto &p=raw[c.detector];(c.axis?p.second:p.first).push_back(c);
+            }
+            if(!finite){++bad;std::cerr<<"Skip nonfinite entry "<<entry<<"\n";continue;}
+            events.Fill(1);before.fill(raw,Pairs(raw,settings,false),*evt,detectors);
+            if(*evt<settings.firstEventID||*evt>settings.lastEventID||n>settings.maxEventClusters)continue;
+            events.Fill(2);Event accepted;
+            for(const auto &d:raw){int a=0;for(const auto *p:{&d.second.first,&d.second.second}){
+                const auto &cuts=a?settings.get(d.first).y:settings.get(d.first).x;
+                for(const auto &c:*p)if(Accept(c,cuts,flow)){auto &v=accepted[d.first];(a?v.second:v.first).push_back(c);}++a;
+            }}
+            const auto proposed=Pairs(accepted,settings,false),pairs=Pairs(accepted,settings,true);
+            clusterStage.fill(accepted,proposed,*evt,detectors);
+            for(const auto &d:proposed)for(size_t j=0;j<d.second.size();++j)pairFlow.Fill(0);
+            for(const auto &d:pairs)for(size_t j=0;j<d.second.size();++j)pairFlow.Fill(1);
+            if(settings.requireMatchedPair){Event matched;for(const auto &d:pairs)for(const auto &p:d.second){matched[d.first].first.push_back(p.first);matched[d.first].second.push_back(p.second);}accepted=std::move(matched);}
+            finalStage.fill(accepted,pairs,*evt,detectors);
+            std::vector<Cluster> outputClusters;
+            for(const auto &d:accepted){for(const auto &c:d.second.first)outputClusters.push_back(c);for(const auto &c:d.second.second)outputClusters.push_back(c);}
+            std::sort(outputClusters.begin(),outputClusters.end(),[](const Cluster &a,const Cluster &b){return a.index<b.index;});
+            for(size_t j=0;j<outputClusters.size();++j)flow.Fill(6);
+            if(selected){
+                outEvent=*evt;outN=outputClusters.size();outLayer.clear();outDet.clear();outModule.clear();outAxis.clear();outSize.clear();outADC.clear();outPos.clear();outStrip.clear();outStripADC.clear();
+                for(const auto &c:outputClusters){outLayer.push_back(c.layer);outDet.push_back(c.detector);outModule.push_back(c.module);outAxis.push_back(c.axis);outSize.push_back(c.size);outADC.push_back(c.peak);outPos.push_back(c.position);outStrip.insert(outStrip.end(),c.strips.begin(),c.strips.end());outStripADC.insert(outStripADC.end(),c.charges.begin(),c.charges.end());}
+                if(selected->Fill()<0)throw std::runtime_error("Failed to write selected tree");
+            }
+            events.Fill(3);++written;
+            if((entry+1)%100000==0)std::cout<<"Processed "<<entry+1<<" / "<<count<<"\n";
+        }
+        dst->cd();
+        before.setDisplayRanges();clusterStage.setDisplayRanges();finalStage.setDisplayRanges();
+        TNamed metadata("cut_configuration",Describe(settings).c_str());metadata.Write();
+        TNamed provenance("input_file",input);provenance.Write();
+        TNamed status("processing_summary",("entries="+std::to_string(count)+" written="+std::to_string(written)+" malformed_or_nonfinite="+std::to_string(bad)).c_str());status.Write();
+        if(dst->Write()<=0)throw std::runtime_error("Failed to write output");
+        // Detach stack-owned objects before closing their directory.
+        events.SetDirectory(nullptr);flow.SetDirectory(nullptr);pairFlow.SetDirectory(nullptr);
+        if(selected)selected->SetDirectory(nullptr);
+        dst->Close();
+        std::cout<<"Wrote "<<out<<"; input entries="<<count<<", written events="<<written<<", skipped invalid="<<bad<<"\n";
+        std::cout<<"Use PrintAllHistograms.C on this file; before_cuts/ provides the baseline.\n";
+    }catch(const std::exception &e){std::cerr<<"CleanClusterQuality ERROR: "<<e.what()<<"\n";}
+}

@@ -1,0 +1,20 @@
+run,pedestal,common_mode
+# Fill in your actual assignments; ranges are inclusive. Remove these examples if different.
+#Drift field scan from 1 kV/cm(100 V) to 4 kV/cm(400 V) by 40
+377,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+378,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+379,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+380,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+381,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+382,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+383,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+385,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+386,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+387,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+388,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+389,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+390,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+391,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+394,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+395,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+397,database/gem_ped_472.dat,database/CommonModeRange_472.txt

@@ -1,0 +1,30 @@
+run,pedestal,common_mode
+# Fill in your actual assignments; ranges are inclusive. Remove these examples if different.
+#uRWELL HV Scan at GEM 360 V : Transfer field 2.5 kV/cm : Drift field 2 kV/cm
+421,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+422,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+423,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+424,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+425,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+463,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+443,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+444,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+445,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+#uRWELL HV Scan at GEM 370 V : Transfer field 2.5 kV/cm : Drift field 2 kV/cm
+446,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+447,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+448,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+449,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+450,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+451,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+453,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+454,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+#uRWELL HV Scan at GEM 360 V : Transfer field 3.0 kV/cm : Drift field 2 kV/cm
+455,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+456,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+457,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+458,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+459,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+460,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+461,database/gem_ped_472.dat,database/CommonModeRange_472.txt
+462,database/gem_ped_472.dat,database/CommonModeRange_472.txt

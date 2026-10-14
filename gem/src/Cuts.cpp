@@ -304,14 +304,43 @@ float Cuts::__get_seed_strip_sum_adc(const StripCluster &c) const
 //                                    cuts                                    //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Cuts::max_time_bin(const StripHit &hit) const
-{
-    int timebin = __get_max_timebin(hit);
+//bool Cuts::max_time_bin(const StripHit &hit) const
+//{
+//    int timebin = __get_max_timebin(hit);
 
-    for(auto &i: (m_cut.at("max time bin")).arr<int>())
-    {
-        if(i == timebin)
-            return true;
+//    for(auto &i: (m_cut.at("max time bin")).arr<int>())
+//    {
+//        if(i == timebin)
+//            return true;
+//    }
+
+//    return false;
+//}
+
+bool Cuts::max_time_bin(const StripHit &hit, int detector_id)const
+{
+    const int timebin = __get_max_timebin(hit);
+
+    //Fall back to the existing global setting.
+    auto setting = m_cut.find("max time bin");
+
+    if(detector_id >= 0){
+      const std::string key = "max time bin detector " + std::to_string(detector_id);
+      
+      const auto override_setting = m_cut.find(key);
+      if (override_setting != m_cut.end()){
+	     setting = override_setting; 
+      }
+    }
+
+    if (setting == m_cut.end()){
+      throw std::runtime_error("Missing max time bin configuration");
+    }
+
+    for (const int allowed : setting->second.arr<int>()){
+      if (timebin == allowed){
+        return true;
+      }
     }
 
     return false;
