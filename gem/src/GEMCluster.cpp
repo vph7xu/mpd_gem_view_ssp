@@ -17,6 +17,8 @@
 #include "GEMCluster.h"
 #include "Cuts.h"
 #include <algorithm>
+#include <cmath>
+#include <stdexcept>
 
 #define USE_GEM_CUT
 //#define COSMIC_MODE_2D_HITS
@@ -55,6 +57,14 @@ void GEMCluster::Configure([[maybe_unused]]const std::string &path)
     CONF_CONN(split_cluster_diff, "Split Threshold", 14, verbose);
     CONF_CONN(cross_talk_width, "Cross Talk Width", 2, verbose);
     CONF_CONN(consecutive_thres, "Consecutive Threshold", 1, verbose);
+    CONF_CONN(cross_talk_rejection_enabled, "Cross Talk Rejection Enabled", false, verbose);
+    CONF_CONN(cross_talk_require_waveform, "Cross Talk Require Waveform", true, verbose);
+    CONF_CONN(cross_talk_min_correlation, "Cross Talk Min Correlation", 0.95, verbose);
+    CONF_CONN(cross_talk_allow_unclustered_source,"Cross Talk Allow Source", false, verbose);
+
+    if(cross_talk_min_correlation < -1.0 || cross_talk_min_correlation > 1.0){
+        throw std::runtime_error("Cross Talk Min Correlation must be between -1 and 1");
+    }
 
     // get cross talk characteristic distance
     charac_dists.clear();
@@ -114,7 +124,7 @@ bool GEMCluster::IsGoodStrip(const StripHit &hit, int detector_id) const
         return false;
 
     // strip avg time cut
-    if(!Cuts::Instance().strip_mean_time(hit), detector_id)
+    if(!Cuts::Instance().strip_mean_time(hit, detector_id))
         return false;
 #endif
     return true;
@@ -264,7 +274,60 @@ inline bool ct_distance(SCit it, SCit end, float width, const std::vector<float>
 ////////////////////////////////////////////////////////////////////////////////
 // 
 
-void GEMCluster::setCrossTalk(std::vector<StripCluster> &clusters)
+namespace {
+
+bool cross_talk_waveforms_match(
+    const StripHit &candidate,
+    const StripHit &source,
+    double minimum_correlation)
+{
+    const auto &a = candidate.ts_adc;
+    const auto &b = source.ts_adc;
+
+    if (a.size() != b.size() || a.size() < 3)
+        return false;
+
+    double mean_a = 0.0;
+    double mean_b = 0.0;
+
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (!std::isfinite(a[i]) || !std::isfinite(b[i]))
+            return false;
+
+        mean_a += a[i];
+        mean_b += b[i];
+    }
+
+    mean_a /= a.size();
+    mean_b /= b.size();
+
+    double covariance = 0.0;
+    double variance_a = 0.0;
+    double variance_b = 0.0;
+
+    for (size_t i = 0; i < a.size(); ++i) {
+        const double da = a[i] - mean_a;
+        const double db = b[i] - mean_b;
+
+        covariance += da * db;
+        variance_a += da * da;
+        variance_b += db * db;
+    }
+
+    // Flat waveforms cannot establish a meaningful correlation.
+    if (variance_a <= 0.0 || variance_b <= 0.0)
+        return false;
+
+    const double correlation =
+        covariance / std::sqrt(variance_a * variance_b);
+
+    return correlation >= minimum_correlation;
+}
+
+} // namespace
+
+
+/*void GEMCluster::setCrossTalk(std::vector<StripCluster> &clusters)
 const
 {
     // sort by peak charge
@@ -282,7 +345,110 @@ const
 
         it->cross_talk = ct_distance(it, clusters.end(), cross_talk_width, charac_dists);
     }
+}*/
+
+
+void GEMCluster::setCrossTalk(
+    std::vector<StripCluster> &clusters) const
+{
+    // Reset flags on every call.
+    for (auto &cluster : clusters)
+        cluster.cross_talk = false;
+
+    if (!cross_talk_rejection_enabled)
+        return;
+
+    for (size_t candidate_index = 0;
+         candidate_index < clusters.size();
+         ++candidate_index) {
+
+        auto &candidate = clusters[candidate_index];
+
+        if (candidate.hits.empty())
+            continue;
+
+        // Conservative: every constituent strip must be suspicious.
+        bool all_flagged = true;
+
+        for (const auto &hit : candidate.hits) {
+            if (!hit.cross_talk ||
+                hit.apv_channel < 0 ||
+                hit.cross_talk_source_channel < 0) {
+                all_flagged = false;
+                break;
+            }
+        }
+
+        if (!all_flagged)
+            continue;
+
+	if(cross_talk_allow_unclustered_source){
+	    bool all_explained = true;
+	    for (const auto &hit : candidate.hits){
+	        if(cross_talk_require_waveform){
+		    const double correlation = hit.cross_talk_source_correlation;
+
+		    if( !std::isfinite(correlation) || correlation < -1.0 || correlation > 1.0 || correlation < cross_talk_min_correlation){
+			    all_explained = false;
+			    break;
+		    
+		    }
+		}
+	    }
+
+	    candidate.cross_talk = all_explained;
+	    continue;
+	}
+
+        for (size_t source_index = 0;
+             source_index < clusters.size();
+             ++source_index) {
+
+            if (source_index == candidate_index)
+                continue;
+
+            const auto &source = clusters[source_index];
+
+            // Require a strictly stronger source cluster.
+            if (!(source.peak_charge > candidate.peak_charge))
+                continue;
+
+            bool explained_by_source = true;
+
+            for (const auto &hit : candidate.hits) {
+                const StripHit *source_hit = nullptr;
+
+                for (const auto &other : source.hits) {
+                    if (other.apv_addr == hit.apv_addr &&
+                        other.apv_channel ==
+                            hit.cross_talk_source_channel) {
+                        source_hit = &other;
+                        break;
+                    }
+                }
+
+                if (source_hit == nullptr) {
+                    explained_by_source = false;
+                    break;
+                }
+
+                if (cross_talk_require_waveform &&
+                    !cross_talk_waveforms_match(
+                        hit, *source_hit,
+                        cross_talk_min_correlation)) {
+                    explained_by_source = false;
+                    break;
+                }
+            }
+
+            if (explained_by_source) {
+                candidate.cross_talk = true;
+                break;
+            }
+        }
+    }
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // calculate the cluster position

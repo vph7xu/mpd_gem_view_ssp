@@ -830,6 +830,10 @@ void GEMAPV::ZeroSuppression()
 
     for(uint32_t i = 0; i < APV_STRIP_SIZE; ++i)
     {
+	if (m_unused_mask[i]){
+	  hit_pos[i] = false;
+	  continue;
+	}
         float average = 0.;
         for(uint32_t j = 0; j < time_samples; ++j)
         {
@@ -848,13 +852,62 @@ void GEMAPV::ZeroSuppression()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+//
+namespace {
+
+double apv_cross_talk_correlation(
+    const std::vector<float> &a,
+    const std::vector<float> &b)
+{
+    if (a.size() != b.size() || a.size() < 3)
+        return -2.0;
+
+    double mean_a = 0.0;
+    double mean_b = 0.0;
+
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (!std::isfinite(a[i]) || !std::isfinite(b[i]))
+            return -2.0;
+
+        mean_a += a[i];
+        mean_b += b[i];
+    }
+
+    mean_a /= a.size();
+    mean_b /= b.size();
+
+    double covariance = 0.0;
+    double variance_a = 0.0;
+    double variance_b = 0.0;
+
+    for (size_t i = 0; i < a.size(); ++i) {
+        const double da = a[i] - mean_a;
+        const double db = b[i] - mean_b;
+
+        covariance += da * db;
+        variance_a += da * da;
+        variance_b += db * db;
+    }
+
+    if (variance_a <= 0.0 || variance_b <= 0.0)
+        return -2.0;
+
+    const double correlation =
+        covariance / std::sqrt(variance_a * variance_b);
+
+    return std::max(-1.0, std::min(1.0, correlation));
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
 // collect zero suppressed hit in raw data space, need a container input
 
 void GEMAPV::CollectZeroSupHits(std::vector<GEM_Strip_Data> &hits)
 {
     for(uint32_t i = 0; i < APV_STRIP_SIZE; ++i)
     {
-        if(!hit_pos[i])
+        if(!hit_pos[i] || m_unused_mask[i])
             continue;
 
         GEM_Strip_Data hit(crate_id, mpd_id, adc_ch, i);
@@ -869,7 +922,7 @@ void GEMAPV::CollectZeroSupHits(std::vector<GEM_Strip_Data> &hits)
 ////////////////////////////////////////////////////////////////////////////////
 // collect zero suppressed hit in raw data space, directly to connected Plane
 
-void GEMAPV::CollectZeroSupHits()
+/*void GEMAPV::CollectZeroSupHits()
 {
     if(plane == nullptr)
         return;
@@ -888,6 +941,67 @@ void GEMAPV::CollectZeroSupHits()
                 adc_ch,
                 GetRawTSADC(i)
                 );
+    }
+
+}*/
+
+
+void GEMAPV::CollectZeroSupHits()
+{
+    if (plane == nullptr)
+        return;
+
+    for (uint32_t i = 0; i < APV_STRIP_SIZE; ++i) {
+        if (!hit_pos[i] || m_unused_mask[i])
+            continue;
+
+        const bool possible_ct = IsCrossTalkStrip(i);
+        int source_channel = -1;
+
+        if (possible_ct) {
+            const float candidate_peak = GetMaxCharge(i);
+            float strongest_peak = 0.0f;
+
+            if (i > 0) {
+                const float peak = GetMaxCharge(i - 1);
+
+                if (peak > candidate_peak * crosstalk_thres &&
+                    peak > strongest_peak) {
+                    strongest_peak = peak;
+                    source_channel = static_cast<int>(i) - 1;
+                }
+            }
+
+            if (i + 1 < APV_STRIP_SIZE) {
+                const float peak = GetMaxCharge(i + 1);
+
+                if (peak > candidate_peak * crosstalk_thres &&
+                    peak > strongest_peak) {
+                    strongest_peak = peak;
+                    source_channel = static_cast<int>(i) + 1;
+                }
+            }
+        }
+        
+	double source_correlation = -2.0;
+
+	if( source_channel >=0 ){
+	    source_correlation = apv_cross_talk_correlation(GetRawTSADC(i), GetRawTSADC(static_cast<uint32_t>(source_channel)));
+	}
+
+
+        plane->AddStripHit(
+            strip_map[i].plane,
+            GetMaxCharge(i),
+            GetMaxTimeBin(i),
+            possible_ct,
+            crate_id,
+            mpd_id,
+            adc_ch,
+            GetRawTSADC(i),
+            static_cast<int>(i),
+            source_channel,
+	    source_correlation);
     }
 }
 

@@ -42,7 +42,7 @@ public:
     void ConnectAPV(GEMAPV *apv, const int &index);
     void DisconnectAPV(const uint32_t &plane_index, bool force_disconn);
     void DisconnectAPVs();
-    void AddStripHit(int strip, float charge, short timebin, bool xtalk, int crate, int mpd, int adc, const std::vector<float> &ts_adc);
+    void AddStripHit(int strip, float charge, short timebin, bool xtalk, int crate, int mpd, int adc, const std::vector<float> &ts_adc, int apv_channel = -1, int cross_talk_source_channel = -1,double cross_talk_source_correlation = -2.0);
     void AddUnZeroSupStripHit(int strip, float charge, short timebin, bool xtalk, int crate, int mpd, int adc, const std::vector<float> &ts_adc);
     void ClearStripHits();
     void CollectAPVHits();

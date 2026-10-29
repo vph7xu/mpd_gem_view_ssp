@@ -139,6 +139,10 @@ struct StripHit
     short max_timebin;
     float position;
     bool cross_talk;
+    int  apv_channel = -1; //Electronics channel within this APV, before strip mapping
+    int cross_talk_source_channel = -1; //Strongest neighbouring APV channel that caused the cross-talk flag
+    double cross_talk_source_correlation = -2.0;
+
     APVAddress apv_addr;
     std::vector<float> ts_adc;
 

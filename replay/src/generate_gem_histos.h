@@ -23,6 +23,23 @@
 
 namespace quality_check_histos
 {
+    inline double strip_sum_adc(const StripHit &hit){
+      double sum = 0.;
+      for (const auto adc : hit.ts_adc){
+	      sum += adc;
+      }
+      return sum;
+    }
+
+    inline double cluster_sum_adc(const StripCluster &cluster){
+      double sum = 0.;
+      for (const auto &hit : cluster.hits){
+	      sum += strip_sum_adc(hit);
+      }
+      return sum;
+    }
+
+
     // global variables
     static histos::HistoManager<> histM;
     static GEMSystem *gem_sys;
@@ -143,6 +160,7 @@ namespace quality_check_histos
                 for(auto &i: x_strip_hits) {
                     histM.histo_1d<float>(Form("h_raw_xstrip_maxtimebin_layer%d", det_module_id)) -> Fill(i.max_timebin);
                     histM.histo_1d<float>(Form("h_raw_xstrip_adc_layer%d", det_module_id)) -> Fill(i.charge);
+		    histM.histo_1d<float>(Form("h_raw_xstrip_sum_adc_layer%d", det_module_id))->Fill(strip_sum_adc(i));
                     histM.histo_1d<float>(Form("h_raw_strip_mean_time_x_layer%d", det_module_id)) -> Fill(get_strip_mean_time(i));
                     histM.histo_2d<float>(Form("h_raw_x_strip_adc_index_layer%d", det_module_id)) -> Fill(i.strip, i.charge);
                 }
@@ -171,6 +189,7 @@ namespace quality_check_histos
                 for(auto &i: y_strip_hits) {
                     histM.histo_1d<float>(Form("h_raw_ystrip_maxtimebin_layer%d", det_module_id)) -> Fill(i.max_timebin);
                     histM.histo_1d<float>(Form("h_raw_ystrip_adc_layer%d", det_module_id)) -> Fill(i.charge);
+		    histM.histo_1d<float>(Form("h_raw_ystrip_sum_adc_layer%d", det_module_id)) -> Fill(strip_sum_adc(i));
                     histM.histo_1d<float>(Form("h_raw_strip_mean_time_y_layer%d", det_module_id)) -> Fill(get_strip_mean_time(i));
                     histM.histo_2d<float>(Form("h_raw_y_strip_adc_index_layer%d", det_module_id)) -> Fill(i.strip, i.charge);
                 }
@@ -195,9 +214,16 @@ namespace quality_check_histos
                     //return c1.total_charge > c2.total_charge;
                     return c1.peak_charge > c2.peak_charge;
                     });
-            size_t c_s = x_clusters.size() < y_clusters.size() ? x_clusters.size() : y_clusters.size();
-
+            size_t c_s = 1 ;//= x_clusters.size() < y_clusters.size() ? x_clusters.size() : y_clusters.size();
+            if(x_clusters.size() >= 1 && y_clusters.size() >= 1){
             for(size_t i=0; i<c_s; i++) {
+		const auto &xc = x_clusters[i];
+		const auto &yc = y_clusters[i];
+
+		//peak ADC of each paired cluster
+		histM.histo_1d<float>(Form("h_matched_cluster_adc_x_layer%d",det_module_id))->Fill(xc.peak_charge);
+		histM.histo_1d<float>(Form("h_matched_cluster_adc_y_layer%d",det_module_id))->Fill(yc.peak_charge);
+		
                 histM.histo_2d<float>(Form("h_raw_charge_correlation_layer%d", det_module_id)) -> Fill(x_clusters[i].peak_charge, y_clusters[i].peak_charge);
                 histM.histo_2d<float>(Form("h_raw_size_correlation_layer%d", det_module_id)) -> Fill(x_clusters[i].hits.size(), y_clusters[i].hits.size());
                 histM.histo_2d<float>(Form("h_raw_seed_strip_mean_time_corr_layer%d", det_module_id)) -> Fill(get_seed_strip_mean_time(x_clusters[i]), get_seed_strip_mean_time(y_clusters[i]));
@@ -246,15 +272,18 @@ namespace quality_check_histos
 			// x side clusters
 			for(auto &i: x_clusters) {
 				histM.histo_1d<float>(Form("h_raw_cluster_adc_x_layer%d", det_module_id)) -> Fill(i.peak_charge);
+				histM.histo_1d<float>(Form("h_raw_cluster_sum_adc_x_layer%d", det_module_id)) -> Fill(cluster_sum_adc(i));
 				histM.histo_1d<float>(Form("h_raw_cluster_size_x_layer%d", det_module_id)) -> Fill(i.hits.size());
 				histM.histo_1d<float>(Form("h_raw_cluster_pos_x_layer%d", det_module_id)) -> Fill(i.position);
 			}
 			// y side clusters
 			for(auto &i: y_clusters) {
 				histM.histo_1d<float>(Form("h_raw_cluster_adc_y_layer%d", det_module_id)) -> Fill(i.peak_charge);
+				histM.histo_1d<float>(Form("h_raw_cluster_sum_adc_y_layer%d", det_module_id)) -> Fill(cluster_sum_adc(i));
 				histM.histo_1d<float>(Form("h_raw_cluster_size_y_layer%d", det_module_id)) -> Fill(i.hits.size());
 				histM.histo_1d<float>(Form("h_raw_cluster_pos_y_layer%d", det_module_id)) -> Fill(i.position);
 			}
+		}
 		}
 	}
 

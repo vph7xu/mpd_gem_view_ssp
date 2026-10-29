@@ -61,6 +61,10 @@ protected:
 
     // cross talk characteristic distances
     std::vector<float> charac_dists;
+    bool cross_talk_rejection_enabled = false;
+    bool cross_talk_require_waveform = true;
+    double cross_talk_min_correlation = 0.95;
+    bool cross_talk_allow_unclustered_source = false;
 };
 
 #endif

@@ -507,7 +507,7 @@ bool Cuts::cluster_adc_assymetry(const StripCluster &c1, const StripCluster &c2,
 
     float assymetry = abs(c1_adc - c2_adc) / abs(c1_adc + c2_adc);
     
-    float criteria = ForModule("2d cluster adc assymetry").val<float>();//m_cut.at("2d cluster adc assymetry").val<float>();
+    float criteria = ForModule("2d cluster adc assymetry", detector_id).val<float>();//m_cut.at("2d cluster adc assymetry").val<float>();
 
     if(assymetry <= criteria)
         return true;

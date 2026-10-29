@@ -460,7 +460,7 @@ void GEMPlane::ClearStripClusters()
 // add a plane hit
 
 void GEMPlane::AddStripHit(int strip, float charge, short maxtime, bool xtalk, 
-        int crate, int mpd, int adc, const std::vector<float> &_ts_adc)
+        int crate, int mpd, int adc, const std::vector<float> &_ts_adc,int apv_channel, int cross_talk_source_channel, double cross_talk_source_correlation)
 {
     std::string detector_type = GetDetector() -> GetType();
 
@@ -489,6 +489,9 @@ void GEMPlane::AddStripHit(int strip, float charge, short maxtime, bool xtalk,
             xtalk, crate, mpd, adc);
 
     strip_hits.back().ts_adc = _ts_adc;
+    strip_hits.back().apv_channel = apv_channel;
+    strip_hits.back().cross_talk_source_channel = cross_talk_source_channel;
+    strip_hits.back().cross_talk_source_correlation = cross_talk_source_correlation;
 
 #ifdef USE_STRIP_SHAPE_CUT
     if(!Cuts::Instance().is_concave_shape(strip_hits.back()))
