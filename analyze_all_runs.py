@@ -67,7 +67,7 @@ def read_calibrations(path, repo):
 
 
 def replay_command(replay, ped, cm, path):
-    return [str(replay), "-c", "0", "-t", "0", "-z", "1", "-n", "-1", "--tracking", "off",
+    return [str(replay), "-c", "0", "-t", "0", "-z", "1", "-n", "-1", "--tracking", "on",
             "--pedestal", str(ped), "--common_mode", str(cm), str(path)]
 
 
@@ -94,11 +94,25 @@ def collect_run_outputs(repo, number, calibration_csv):
     return destination
 
 
-def plot_command(repo, number, calibration_csv):
-    output = calibration_output_dir(repo, calibration_csv) / f"cluster_0_cern_beamtest_exp1_{number}.root_data_quality_check.root"
-    macro = f'scripts/plot_quality_results_2.cpp("{output}")'
-    return output, ["root", "-b", "-q", macro]
+#def plot_command(repo, number, calibration_csv):
+#    output = calibration_output_dir(repo, calibration_csv) / f"cluster_0_cern_beamtest_exp1_{number}.root_data_quality_check.root"
+#    macro = f'scripts/plot_quality_results_detectors.cpp("{output}")'
+#    return output, ["root", "-b", "-q", macro]
 
+def plot_command(repo, number, calibration_csv):
+    output = (
+        calibration_output_dir(repo, calibration_csv)
+        / f"cluster_0_cern_beamtest_exp1_{number}.root_data_quality_check.root"
+    )
+
+    pdf = output.with_name(output.stem + "_detectors.pdf")
+
+    macro = (
+        'scripts/plot_quality_results_detectors.cpp('
+        f'"{output}","{pdf}",true,false,true)'
+    )
+
+    return output, ["root", "-l", "-b", "-q", macro]
 
 def write_slurm_job(path, repo, replay, number, files, ped, cm, args):
     lines = ["#!/bin/bash", f"#SBATCH --job-name=gem_{number}",
@@ -228,8 +242,8 @@ def main():
         replay = next((p for p in (repo / "bin/replay", repo / "replay") if p.is_file()), repo / "bin/replay")
     if not replay.is_file():
         parser.error(f"replay binary missing: {replay}; specify its location with --replay")
-    if args.plot and not (repo / "scripts/plot_quality_results_2.cpp").is_file():
-        parser.error("scripts/plot_quality_results_2.cpp missing")
+    if args.plot and not (repo / "scripts/plot_quality_results_detectors.cpp").is_file():
+        parser.error("scripts/plot_quality_results_detectors.cpp missing")
 
     # Replay writes to Rootfiles by input basename. Reject basename collisions
     # before processing so one raw file cannot overwrite another's output.
@@ -282,6 +296,7 @@ def main():
             collect_run_outputs(repo, number, args.calibrations)
         if args.plot and not args.dry_run:
             output, plot_cmd = plot_command(repo, number, args.calibrations)
+            #output, plot_cmd = plot_command(repo, number)
             if not output.is_file():
                 failures.append((str(output), 1, "ROOT output missing"))
                 print(f"Plot failed: ROOT output missing: {output}", file=sys.stderr)

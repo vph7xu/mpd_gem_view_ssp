@@ -34,7 +34,8 @@ namespace quality_check_histos
     inline double cluster_sum_adc(const StripCluster &cluster){
       double sum = 0.;
       for (const auto &hit : cluster.hits){
-	      sum += strip_sum_adc(hit);
+	      //sum += strip_sum_adc(hit);
+	      sum += hit.charge;
       }
       return sum;
     }
@@ -224,7 +225,7 @@ namespace quality_check_histos
 		histM.histo_1d<float>(Form("h_matched_cluster_adc_x_layer%d",det_module_id))->Fill(xc.peak_charge);
 		histM.histo_1d<float>(Form("h_matched_cluster_adc_y_layer%d",det_module_id))->Fill(yc.peak_charge);
 		
-                histM.histo_2d<float>(Form("h_raw_charge_correlation_layer%d", det_module_id)) -> Fill(x_clusters[i].peak_charge, y_clusters[i].peak_charge);
+                histM.histo_2d<float>(Form("h_raw_charge_correlation_layer%d", det_module_id)) -> Fill(cluster_sum_adc(xc),cluster_sum_adc(yc));//Fill(x_clusters[i].peak_charge, y_clusters[i].peak_charge);
                 histM.histo_2d<float>(Form("h_raw_size_correlation_layer%d", det_module_id)) -> Fill(x_clusters[i].hits.size(), y_clusters[i].hits.size());
                 histM.histo_2d<float>(Form("h_raw_seed_strip_mean_time_corr_layer%d", det_module_id)) -> Fill(get_seed_strip_mean_time(x_clusters[i]), get_seed_strip_mean_time(y_clusters[i]));
 
