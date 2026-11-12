@@ -43,12 +43,22 @@ void Tracking::ClearLayers()
 
 void Tracking::CompleteSetup()
 {
+    //ReadCuts();
+
+    //initLayerGroups();
+    ////PrintLayerGroups();
+
+    //std::cout<<"INFO:: Tracking setup completed."<<std::endl;
+
     ReadCuts();
 
-    initLayerGroups();
-    //PrintLayerGroups();
+    // Sort tracking layers by increasing Z position.
+    std::sort(layer_index.begin(), layer_index.end(), [this](int a, int b){return detector.at(a)->GetZPosition() < detector.at(b)->GetZPosition();});
 
-    std::cout<<"INFO:: Tracking setup completed."<<std::endl;
+    initLayerGroups();
+
+    std::cout << "INFO:: Tracking setup completed."<< std::endl;
+
 }
 
 // read the scalar tracking cuts from the Cuts singleton into members

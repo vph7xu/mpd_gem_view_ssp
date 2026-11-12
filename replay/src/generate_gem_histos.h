@@ -222,15 +222,40 @@ namespace quality_check_histos
 		const auto &yc = y_clusters[i];
 
 		//peak ADC of each paired cluster
-		histM.histo_1d<float>(Form("h_matched_cluster_adc_x_layer%d",det_module_id))->Fill(xc.peak_charge);
-		histM.histo_1d<float>(Form("h_matched_cluster_adc_y_layer%d",det_module_id))->Fill(yc.peak_charge);
+		//histM.histo_1d<float>(Form("h_matched_cluster_adc_x_layer%d",det_module_id))->Fill(xc.peak_charge);
+		//histM.histo_1d<float>(Form("h_matched_cluster_adc_y_layer%d",det_module_id))->Fill(yc.peak_charge);
 		
-                histM.histo_2d<float>(Form("h_raw_charge_correlation_layer%d", det_module_id)) -> Fill(cluster_sum_adc(xc),cluster_sum_adc(yc));//Fill(x_clusters[i].peak_charge, y_clusters[i].peak_charge);
-                histM.histo_2d<float>(Form("h_raw_size_correlation_layer%d", det_module_id)) -> Fill(x_clusters[i].hits.size(), y_clusters[i].hits.size());
+                //histM.histo_2d<float>(Form("h_raw_charge_correlation_layer%d", det_module_id)) -> Fill(cluster_sum_adc(xc),cluster_sum_adc(yc));//Fill(x_clusters[i].peak_charge, y_clusters[i].peak_charge);
+                
+		// ------------------------------------------------------------
+		// X-Y cluster charge correlation cut
+		// ------------------------------------------------------------
+
+		// Cluster charges used in the charge-correlation plot
+		const double qx = cluster_sum_adc(xc);
+		const double qy = cluster_sum_adc(yc);
+
+		// Fill original charge-correlation histogram BEFORE cuts
+		histM.histo_2d<float>(Form("h_raw_charge_correlation_layer%d", det_module_id))->Fill(qx, qy);
+
+		// Apply the same ADC asymmetry cut defined in gem_tracking_cern.conf
+		const bool pass_charge_cut = Cuts::Instance().cluster_adc_assymetry(xc, yc, det_module_id);
+
+		// Reject this cluster pair if its charges disagree
+		if (!pass_charge_cut)continue;
+
+		// Fill charge-correlation histogram AFTER cuts
+		histM.histo_2d<float>(Form("h_raw_charge_correlation_cut_layer%d", det_module_id))->Fill(qx, qy);
+
+		// Matched-cluster ADC distributions after charge cut
+		histM.histo_1d<float>(Form("h_matched_cluster_adc_x_layer%d", det_module_id))->Fill(xc.peak_charge);
+
+		histM.histo_1d<float>(Form("h_matched_cluster_adc_y_layer%d", det_module_id))->Fill(yc.peak_charge);
+		
+		histM.histo_2d<float>(Form("h_raw_size_correlation_layer%d", det_module_id)) -> Fill(x_clusters[i].hits.size(), y_clusters[i].hits.size());
                 histM.histo_2d<float>(Form("h_raw_seed_strip_mean_time_corr_layer%d", det_module_id)) -> Fill(get_seed_strip_mean_time(x_clusters[i]), get_seed_strip_mean_time(y_clusters[i]));
 
-				if(det->GetType() == "MOLLERGEM")
-                {
+		if(det->GetType() == "MOLLERGEM"){
 					auto &x_strips = x_clusters[i].hits;
 					auto &y_strips = y_clusters[i].hits;
 					bool has_intersect = false;
@@ -261,8 +286,7 @@ namespace quality_check_histos
                         histM.histo_2d<float>(Form("h_raw_pos_correlation_layer%d", det_module_id)) -> Fill(p2d.first, p2d.second);
                     }
                 }
-				else if( (det -> GetType() == "INFNXWGEM") || (det -> GetType() == "UVAXWGEM") )
-				{
+		else if( (det -> GetType() == "INFNXWGEM") || (det -> GetType() == "UVAXWGEM") ){
 					auto p2d = convert_xw_to_xy_sbs(x_clusters[i].position, y_clusters[i].position);
 					histM.histo_2d<float>(Form("h_raw_pos_correlation_layer%d", det_module_id)) -> Fill(p2d.first, p2d.second);
 				}

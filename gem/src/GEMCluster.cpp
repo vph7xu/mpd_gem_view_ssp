@@ -592,7 +592,14 @@ const
         {
             const StripCluster &xc = xc_sorted.at(i);
             const StripCluster &yc = yc_sorted.at(i);
-            container.emplace_back(xc.position, yc.position, 0.,        // by default z = 0
+            
+	    #ifdef USE_GEM_CUT
+    		// Apply X-Y charge asymmetry cut before creating a 2D hit.
+    		if(!Cuts::Instance().cluster_adc_assymetry(xc, yc, det_id))
+        		continue;
+	    #endif
+	    
+	    container.emplace_back(xc.position, yc.position, 0.,        // by default z = 0
                     det_id,                              // detector id
                     xc.total_charge, yc.total_charge,    // fill in total charge
                     xc.peak_charge, yc.peak_charge,      // fill in peak charge

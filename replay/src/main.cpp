@@ -147,24 +147,43 @@ int main(int argc, char* argv[])
         }
 
         // raw cluster/hit process
-        gem_data_handler -> ProcessEvent(pBuf, fBufLen, event_counter);
-        gem_data_handler -> EndofThisEvent(event_counter);
+        //gem_data_handler -> ProcessEvent(pBuf, fBufLen, event_counter);
+        //gem_data_handler -> EndofThisEvent(event_counter);
 
         // fill data quality check histos
-        quality_check_histos::fill_gem_histos(event_counter - start_event);
+        //quality_check_histos::fill_gem_histos(event_counter - start_event);
 
         // fill tracking results
-        if(is_tracking_on) {
+        //if(is_tracking_on) {
             // tracking only works on clustering mode
-            if(args["replay_cluster"].Bool()) {
+            //if(args["replay_cluster"].Bool()) {
                 // tracking process
-                tracking_data_handler -> ClearPrevEvent();
-                tracking_data_handler -> PackageEventData();
-                new_tracking -> FindTracks();
+                //tracking_data_handler -> ClearPrevEvent();
+                //tracking_data_handler -> PackageEventData();
+                //new_tracking -> FindTracks();
 
-                fill_tracking_result(tracking_data_handler, new_tracking, gem_data_handler -> GetClusterTree());
-            }
-        }
+                //fill_tracking_result(tracking_data_handler, new_tracking, gem_data_handler -> GetClusterTree());
+            //}
+        //}
+	//
+	gem_data_handler->ProcessEvent(pBuf, fBufLen, event_counter);
+	gem_data_handler->EndofThisEvent(event_counter);
+
+	// Raw monitoring
+	quality_check_histos::raw_histos(event_counter - start_event);
+
+	if (is_tracking_on && args["replay_cluster"].Bool()) {
+
+    		tracking_data_handler->ClearPrevEvent();
+    		tracking_data_handler->PackageEventData();
+
+    		new_tracking->FindTracks();
+
+   	 	// Tracking monitoring now uses the current event.
+    		quality_check_histos::tracking_histos();
+
+    		fill_tracking_result(tracking_data_handler,new_tracking,gem_data_handler->GetClusterTree());
+	}
 
         event_counter++;
         if(max_event > 0 && event_counter > max_event)

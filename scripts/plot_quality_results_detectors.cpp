@@ -168,7 +168,7 @@ void plot_quality_results_detectors(const char* input,const char* output="",
             {key("h_raw_ystrip_adc_layer%d",d),"Y: strip peak ADC","Strip peak ADC",0,peakAdcMax},
             {key("h_raw_xstrip_maxtimebin_layer%d",d),"X: peak time sample","Peak sample index (zero-based)",-0.5,timeSamples-0.5},
             {key("h_raw_ystrip_maxtimebin_layer%d",d),"Y: peak time sample","Peak sample index (zero-based)",-0.5,timeSamples-0.5},
-            {key("h_raw_charge_correlation_layer%d",d),"X-Y: peak sample cluster sum ADC","X peak sample cluster sum ADC",0,clusterSumMax,"Y peak sample cluster sum ADC",0,clusterSumMax},
+            {key("h_raw_charge_correlation_cut_layer%d",d),"X-Y: peak sample cluster sum ADC","X peak sample cluster sum ADC",0,clusterSumMax,"Y peak sample cluster sum ADC",0,clusterSumMax},
             {key("h_raw_pos_correlation_layer%d",d),"X-Y: cluster position","X position [mm]",-r,r,"Y position [mm]",-r,r}
         },++pages,logCounts,logDensity);
         if(sumPages) page(canvas,*f,pdf,d,"Additional diagnostics: sums over samples; multiplicity as recorded",{
